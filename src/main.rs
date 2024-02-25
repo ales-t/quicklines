@@ -2,11 +2,11 @@ use anyhow::{Ok, Result};
 use clap::Parser;
 use std::io::{stdout, BufWriter};
 
-/// Quicklines
+/// Quicklines: efficiently sample lines from large files
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    /// Path to file
+    /// Path to the input file
     #[arg()]
     file_path: String,
 

@@ -34,14 +34,23 @@ fn maybe_extract_line(chunk: &[u8], offset: usize) -> Option<(usize, usize)> {
     }
 }
 
-pub fn quicklines<W: Write>(file_path: &str, count: usize, mut writer: W) -> Result<()> {
+/// Write roughly `count` lines from uniformly spaced parts of the input file.
+///
+/// Uses `mmap` to do this relatively efficiently.
+pub fn quicklines<W: Write>(file_path: &str, mut count: usize, mut writer: W) -> Result<()> {
     let mmapped = mmap_file(file_path)?;
-    let step_size = mmapped.len() / count;
+    let total_size = mmapped.len();
+
+    if count > total_size {
+        count = total_size; // we make at least steps of size 1, and at most `total_size` steps
+    }
+
+    let step_size = total_size / count;
 
     for i in 0..count {
         let offset = step_size * i;
         if let Some((begin, end)) = maybe_extract_line(&mmapped, offset) {
-            if begin <= step_size * (i + 1) {
+            if begin < step_size * (i + 1) {
                 writer.write_all(&mmapped[begin..end])?;
             }
         }
