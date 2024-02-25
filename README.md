@@ -5,7 +5,7 @@ A simple CLI tool for efficient sampling of lines from large files.
 Usage:
 
 ```bash
-quicklines -c HOW_MANY_LINES my-huge-files.txt
+quicklines -c HOW_MANY_LINES my-huge-file.txt
 ```
 
 `quicklines` will return _at most_ the requested number of lines from uniformly spaced parts of the input file.
