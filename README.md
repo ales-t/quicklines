@@ -13,6 +13,8 @@ quicklines -c HOW_MANY_LINES my-huge-file.txt
 
 `quicklines` will return the requested number of lines from random positions in the input file.
 
-If `--deduplicate` is set, the returned number may be smaller (duplicate samples will be discarded).
+Optionally, you can sample without replacement by using `--no-duplicates`. 
+Be careful with this option, if you ask for a sample which is too large, this may cause the program
+to run forever.
 
 The implementation relies on `mmap` to work efficiently.

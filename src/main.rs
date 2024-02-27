@@ -12,9 +12,9 @@ struct Args {
 
     /// Avoid selecting the same sentence multiple times (=sample without replacement).
     #[arg(long)]
-    deduplicate: bool,
+    no_duplicates: bool,
 
-    /// Avoid selecting the same sentence multiple times (=sample without replacement).
+    /// Random seed.
     #[arg(long)]
     seed: Option<u64>,
 
@@ -30,7 +30,7 @@ fn main() -> Result<()> {
     quicklines::quicklines(
         &args.file_path,
         args.count as usize,
-        !args.deduplicate,
+        !args.no_duplicates,
         args.seed,
         &mut writer,
     )?;

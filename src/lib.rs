@@ -56,10 +56,10 @@ pub fn quicklines<W: Write>(
     while extracted < count {
         let offset = fastrand::usize(0..total_size);
         if let Some((begin, end)) = maybe_extract_line(&mmapped, offset) {
-            extracted += 1;
             if !allow_duplicates && !covered_offsets.insert(begin) {
                 continue; // this is a duplicate
             }
+            extracted += 1;
             writer.write_all(&mmapped[begin..end])?;
         }
     }
