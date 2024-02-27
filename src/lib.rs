@@ -4,28 +4,33 @@ use std::io::Write;
 use std::{collections::HashSet, fs::File};
 
 use memchr::memchr;
-use memmap2::{Mmap, MmapOptions};
+use memmap2::Mmap;
 
+/// Memory map a file. A tiny convenience wrapper around Mmap::new
 fn mmap_file(file_path: &str) -> Result<Mmap> {
     let file = File::open(file_path)?;
-    let mapped = unsafe { MmapOptions::new().map(&file) };
+    let mapped = unsafe { Mmap::map(&file) };
     Ok(mapped?)
 }
 
-fn consume_line(chunk: &[u8], offset: usize) -> Option<usize> {
+/// Find the next newline and return its position.
+fn find_newline(chunk: &[u8], offset: usize) -> Option<usize> {
     memchr(b'\n', &chunk[offset..]).map(|i| offset + i)
 }
 
+/// Find the first complete line from at the given offset.
+///
+/// The function assumes that `offset == 0` is a valid line start.
 fn maybe_extract_line(chunk: &[u8], offset: usize) -> Option<(usize, usize)> {
     let is_start_of_line = offset == 0 || chunk[offset - 1] == b'\n';
 
     let begin = if is_start_of_line {
         offset
     } else {
-        consume_line(chunk, offset)? + 1
+        find_newline(chunk, offset)? + 1
     };
 
-    let end = consume_line(chunk, begin)? + 1;
+    let end = find_newline(chunk, begin)? + 1;
 
     if end <= chunk.len() {
         Some((begin, end))
@@ -34,9 +39,17 @@ fn maybe_extract_line(chunk: &[u8], offset: usize) -> Option<(usize, usize)> {
     }
 }
 
-/// Write roughly `count` random lines from the input file.
+/// Write `count` random lines from the input file.
 ///
 /// Uses `mmap` to do this relatively efficiently.
+///
+/// # Arguments
+///
+/// * `file_path` - path to the file to sample
+/// * `count` - how many samples to take
+/// * `allow_duplicates` - allow duplicate samples, i.e. sample with replacement
+/// * `seed` - optional random seed to ensure deterministic behavior
+/// * `writer` - where to write outputs
 pub fn quicklines<W: Write>(
     file_path: &str,
     count: usize,
@@ -69,17 +82,17 @@ pub fn quicklines<W: Write>(
 
 #[cfg(test)]
 mod tests {
-    use crate::{consume_line, maybe_extract_line};
+    use crate::{find_newline, maybe_extract_line};
     #[test]
-    fn consume_line_returns_correct_index() {
+    fn find_newline_returns_correct_index() {
         let data = "newline\nand something else";
-        assert_eq!(consume_line(data.as_bytes(), 0), Some(7));
+        assert_eq!(find_newline(data.as_bytes(), 0), Some(7));
     }
 
     #[test]
-    fn consume_line_returns_none_when_not_found() {
+    fn find_newline_returns_none_when_not_found() {
         let data = "no newline here";
-        assert_eq!(consume_line(data.as_bytes(), 0), None);
+        assert_eq!(find_newline(data.as_bytes(), 0), None);
     }
 
     #[test]

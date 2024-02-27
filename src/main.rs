@@ -20,7 +20,7 @@ struct Args {
 
     /// Number of lines to sample
     #[arg(short, long)]
-    count: u64,
+    count: usize,
 }
 
 fn main() -> Result<()> {
@@ -29,7 +29,7 @@ fn main() -> Result<()> {
     let mut writer = BufWriter::new(stdout());
     quicklines::quicklines(
         &args.file_path,
-        args.count as usize,
+        args.count,
         !args.no_duplicates,
         args.seed,
         &mut writer,
