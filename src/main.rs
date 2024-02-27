@@ -12,7 +12,7 @@ struct Args {
 
     /// Avoid selecting the same sentence multiple times (=sample without replacement).
     #[arg(long)]
-    no_duplicates: bool,
+    deduplicate: bool,
 
     /// Number of lines to sample
     #[arg(short, long)]
@@ -26,7 +26,7 @@ fn main() -> Result<()> {
     quicklines::quicklines(
         &args.file_path,
         args.count as usize,
-        !args.no_duplicates,
+        !args.deduplicate,
         &mut writer,
     )?;
 
