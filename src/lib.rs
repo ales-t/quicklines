@@ -1,5 +1,4 @@
 use anyhow::{Ok, Result};
-use rand::Rng;
 
 use std::io::Write;
 use std::{collections::HashSet, fs::File};
@@ -42,15 +41,22 @@ pub fn quicklines<W: Write>(
     file_path: &str,
     count: usize,
     allow_duplicates: bool,
+    seed: Option<u64>,
     mut writer: W,
 ) -> Result<()> {
     let mmapped = mmap_file(file_path)?;
     let total_size = mmapped.len();
 
+    if let Some(seed_value) = seed {
+        fastrand::seed(seed_value);
+    }
+
     let mut covered_offsets = HashSet::new();
-    for _ in 0..count {
-        let offset = rand::thread_rng().gen_range(0..total_size);
+    let mut extracted = 0;
+    while extracted < count {
+        let offset = fastrand::usize(0..total_size);
         if let Some((begin, end)) = maybe_extract_line(&mmapped, offset) {
+            extracted += 1;
             if !allow_duplicates && !covered_offsets.insert(begin) {
                 continue; // this is a duplicate
             }

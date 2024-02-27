@@ -14,6 +14,10 @@ struct Args {
     #[arg(long)]
     deduplicate: bool,
 
+    /// Avoid selecting the same sentence multiple times (=sample without replacement).
+    #[arg(long)]
+    seed: Option<u64>,
+
     /// Number of lines to sample
     #[arg(short, long)]
     count: u64,
@@ -27,6 +31,7 @@ fn main() -> Result<()> {
         &args.file_path,
         args.count as usize,
         !args.deduplicate,
+        args.seed,
         &mut writer,
     )?;
 
