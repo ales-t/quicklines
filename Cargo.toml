@@ -10,3 +10,4 @@ anyhow = "1.0.80"
 clap = { version = "4.5.1", features = ["derive"] }
 memchr = "2.7.1"
 memmap2 = "0.9.4"
+rand = "0.8.5"

@@ -1,7 +1,8 @@
 use anyhow::{Ok, Result};
+use rand::Rng;
 
-use std::fs::File;
 use std::io::Write;
+use std::{collections::HashSet, fs::File};
 
 use memchr::memchr;
 use memmap2::{Mmap, MmapOptions};
@@ -34,25 +35,26 @@ fn maybe_extract_line(chunk: &[u8], offset: usize) -> Option<(usize, usize)> {
     }
 }
 
-/// Write roughly `count` lines from uniformly spaced parts of the input file.
+/// Write roughly `count` random lines from the input file.
 ///
 /// Uses `mmap` to do this relatively efficiently.
-pub fn quicklines<W: Write>(file_path: &str, mut count: usize, mut writer: W) -> Result<()> {
+pub fn quicklines<W: Write>(
+    file_path: &str,
+    count: usize,
+    allow_duplicates: bool,
+    mut writer: W,
+) -> Result<()> {
     let mmapped = mmap_file(file_path)?;
     let total_size = mmapped.len();
 
-    if count > total_size {
-        count = total_size; // we make at least steps of size 1, and at most `total_size` steps
-    }
-
-    let step_size = total_size / count;
-
-    for i in 0..count {
-        let offset = step_size * i;
+    let mut covered_offsets = HashSet::new();
+    for _ in 0..count {
+        let offset = rand::thread_rng().gen_range(0..total_size);
         if let Some((begin, end)) = maybe_extract_line(&mmapped, offset) {
-            if begin < step_size * (i + 1) {
-                writer.write_all(&mmapped[begin..end])?;
+            if !allow_duplicates && !covered_offsets.insert(begin) {
+                continue; // this is a duplicate
             }
+            writer.write_all(&mmapped[begin..end])?;
         }
     }
 
