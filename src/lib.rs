@@ -18,16 +18,16 @@ fn find_newline(chunk: &[u8], offset: usize) -> Option<usize> {
     memchr(b'\n', &chunk[offset..]).map(|i| offset + i)
 }
 
-/// Find the first complete line from at the given offset.
+/// Find the first complete line from the given offset.
 ///
 /// The function assumes that `offset == 0` is a valid line start.
 fn maybe_extract_line(chunk: &[u8], offset: usize) -> Option<(usize, usize)> {
-    let is_start_of_line = offset == 0 || chunk[offset - 1] == b'\n';
-
-    let begin = if is_start_of_line {
-        offset
+    let begin = if offset == 0 {
+        0
     } else {
-        find_newline(chunk, offset)? + 1
+        // here we also handle the case where there is a newline just before
+        // the current offset (so the line starts _exactly_ at `offset`)
+        find_newline(chunk, offset - 1)? + 1
     };
 
     let end = find_newline(chunk, begin)? + 1;
