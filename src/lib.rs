@@ -48,6 +48,7 @@ fn last_valid_offset(chunk: &[u8]) -> Result<usize> {
     }
 }
 
+#[inline]
 fn sample_with_replacement<W: Write>(
     chunk: &[u8],
     count: usize,
@@ -63,6 +64,7 @@ fn sample_with_replacement<W: Write>(
     Ok(())
 }
 
+#[inline]
 fn sample_without_replacement<W: Write>(
     chunk: &[u8],
     count: usize,
