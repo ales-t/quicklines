@@ -91,22 +91,6 @@ where
     })
 }
 
-fn sample<'a, 'b>(
-    chunk: &'a [u8],
-    count: usize,
-    last_offset: usize,
-    allow_duplicates: bool,
-) -> Box<dyn Iterator<Item = Result<(usize, usize)>> + 'b>
-where
-    'a: 'b,
-{
-    if allow_duplicates {
-        Box::new(sample_with_replacement(chunk, count, last_offset))
-    } else {
-        Box::new(sample_without_replacement(chunk, count, last_offset))
-    }
-}
-
 /// Write `count` random lines from the input file.
 ///
 /// Uses `mmap` to do this relatively efficiently.
@@ -132,9 +116,16 @@ pub fn quicklines<W: Write>(
         fastrand::seed(seed_value);
     }
 
-    for sample in sample(&mmapped, count, last_offset, allow_duplicates) {
+    let write_fn = |sample: Result<(usize, usize)>| {
         let (begin, end) = sample?;
         writer.write_all(&mmapped[begin..end])?;
+        Ok(())
+    };
+
+    if allow_duplicates {
+        sample_with_replacement(&mmapped, count, last_offset).try_for_each(write_fn)?;
+    } else {
+        sample_without_replacement(&mmapped, count, last_offset).try_for_each(write_fn)?;
     }
 
     Ok(())
