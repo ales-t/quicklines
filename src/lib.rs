@@ -108,7 +108,7 @@ impl<'a, 'b> LineSampler<'a, 'b> for SampleWithoutReplacement {
             Err(anyhow!(
                 "cannot sample {} lines from file with only {} lines",
                 count,
-                i
+                i - 1
             ))
         }))
     }
