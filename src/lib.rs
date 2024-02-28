@@ -39,6 +39,7 @@ fn maybe_extract_line(chunk: &[u8], offset: usize) -> Option<(usize, usize)> {
     }
 }
 
+/// Find the last valid position in the file where a full line can be found
 fn last_valid_offset(chunk: &[u8]) -> Result<usize> {
     let end = memrchr(b'\n', chunk).ok_or(anyhow!("file has no newlines"))?;
     // we found an end (a newline character) so the file contains at least a single line (which starts at 0)
@@ -48,6 +49,7 @@ fn last_valid_offset(chunk: &[u8]) -> Result<usize> {
     }
 }
 
+/// Sample with replacement and print the samples
 fn sample_with_replacement<W: Write>(
     chunk: &[u8],
     count: usize,
@@ -63,6 +65,7 @@ fn sample_with_replacement<W: Write>(
     Ok(())
 }
 
+/// Sample without replacement and print the samples
 fn sample_without_replacement<W: Write>(
     chunk: &[u8],
     count: usize,

@@ -15,6 +15,6 @@ quicklines -c HOW_MANY_LINES my-huge-file.txt
 
 Optionally, you can sample without replacement by using `--no-duplicates`. 
 Be careful with this option, if you ask for a sample which is too large, this may cause the program
-to run forever.
+to run forever (or for a very long time).
 
 The implementation relies on `mmap` to work efficiently.
