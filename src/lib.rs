@@ -48,6 +48,7 @@ fn last_valid_offset(chunk: &[u8]) -> Result<usize> {
     }
 }
 
+#[inline]
 fn sample_with_replacement<'a, 'b>(
     chunk: &'a [u8],
     count: usize,
@@ -62,6 +63,7 @@ where
     })
 }
 
+#[inline]
 fn sample_without_replacement<'a, 'b>(
     chunk: &'a [u8],
     count: usize,
