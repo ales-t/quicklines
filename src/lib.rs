@@ -48,12 +48,11 @@ fn last_valid_offset(chunk: &[u8]) -> Result<usize> {
     }
 }
 
-#[inline]
 fn sample_with_replacement<W: Write>(
     chunk: &[u8],
     count: usize,
     last_offset: usize,
-    mut writer: W,
+    writer: &mut W,
 ) -> Result<()> {
     for _ in 0..count {
         let offset = fastrand::usize(0..last_offset + 1);
@@ -64,12 +63,11 @@ fn sample_with_replacement<W: Write>(
     Ok(())
 }
 
-#[inline]
 fn sample_without_replacement<W: Write>(
     chunk: &[u8],
     count: usize,
     last_offset: usize,
-    mut writer: W,
+    writer: &mut W,
 ) -> Result<()> {
     let mut covered_offsets = HashSet::new();
     let mut extracted_size = 0;
@@ -114,7 +112,7 @@ pub fn quicklines<W: Write>(
     count: usize,
     allow_duplicates: bool,
     seed: Option<u64>,
-    writer: W,
+    writer: &mut W,
 ) -> Result<()> {
     let mmapped = mmap_file(file_path)?;
     let last_offset = last_valid_offset(&mmapped)?;
