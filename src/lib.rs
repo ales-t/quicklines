@@ -39,59 +39,67 @@ fn maybe_extract_line(chunk: &[u8], offset: usize) -> Option<(usize, usize)> {
     }
 }
 
-fn last_valid_offset(chunk: &[u8]) -> Option<usize> {
-    let end = memrchr(b'\n', chunk)?;
+fn last_valid_offset(chunk: &[u8]) -> Result<usize> {
+    let end = memrchr(b'\n', chunk).ok_or(anyhow!("file has no newlines"))?;
     // we found an end (a newline character) so the file contains at least a single line (which starts at 0)
     match memrchr(b'\n', &chunk[..end]) {
-        None => Some(0),
-        Some(begin) => Some(begin + 1), // point past the newline
+        None => Err(anyhow!("file has no newlines")),
+        Some(begin) => Ok(begin + 1), // point past the newline
     }
 }
 
-trait LineSampler {
+trait LineSampler<'a, 'b> {
     fn sample(
-        self,
-        chunk: &[u8],
+        &self,
+        chunk: &'a [u8],
         count: usize,
         last_offset: usize,
-    ) -> impl Iterator<Item = Result<(usize, usize)>>;
+    ) -> Box<dyn Iterator<Item = Result<(usize, usize)>> + 'b>
+    where
+        'a: 'b;
 }
 
 #[derive(Default)]
 struct SampleWithReplacement {}
 
-impl LineSampler for SampleWithReplacement {
+impl<'a, 'b> LineSampler<'a, 'b> for SampleWithReplacement {
     fn sample(
-        self,
-        chunk: &[u8],
+        &self,
+        chunk: &'a [u8],
         count: usize,
         last_offset: usize,
-    ) -> impl Iterator<Item = Result<(usize, usize)>> {
-        (0..count).map(move |_| {
+    ) -> Box<dyn Iterator<Item = Result<(usize, usize)>> + 'b>
+    where
+        'a: 'b,
+    {
+        Box::new((0..count).map(move |_| {
             let offset = fastrand::usize(0..last_offset + 1);
-            maybe_extract_line(chunk, offset).ok_or_else(|| anyhow!("internal error"))
-        })
+            maybe_extract_line(chunk, offset).ok_or(anyhow!("internal error"))
+        }))
     }
 }
 
 #[derive(Default)]
 struct SampleWithoutReplacement {}
 
-impl LineSampler for SampleWithoutReplacement {
+impl<'a, 'b> LineSampler<'a, 'b> for SampleWithoutReplacement {
     fn sample(
-        self,
-        chunk: &[u8],
+        &self,
+        chunk: &'a [u8],
         count: usize,
         last_offset: usize,
-    ) -> impl Iterator<Item = Result<(usize, usize)>> {
+    ) -> Box<dyn Iterator<Item = Result<(usize, usize)>> + 'b>
+    where
+        'a: 'b,
+    {
         let mut covered_offsets = HashSet::new();
         let mut extracted_size = 0;
 
-        (0..count).map(move |i| {
-            let offset = fastrand::usize(0..last_offset + 1);
+        Box::new((0..count).map(move |i| {
             while extracted_size < chunk.len() {
+                let offset = fastrand::usize(0..last_offset + 1);
                 let (begin, end) =
-                    maybe_extract_line(chunk, offset).ok_or_else(|| anyhow!("internal error"))?;
+                    maybe_extract_line(chunk, offset).ok_or(anyhow!("internal error"))?;
 
                 if covered_offsets.insert(begin) {
                     extracted_size += end - begin;
@@ -103,53 +111,9 @@ impl LineSampler for SampleWithoutReplacement {
                 count,
                 i
             ))
-        })
+        }))
     }
 }
-
-// fn sample_with_replacement<'a, 'b>(
-//     chunk: &'a [u8],
-//     count: usize,
-//     last_offset: usize,
-// ) -> impl Iterator<Item = Result<(usize, usize)>> + 'b
-// where
-//     'a: 'b,
-// {
-//     (0..count).map(move |_| {
-//         let offset = fastrand::usize(0..last_offset + 1);
-//         maybe_extract_line(chunk, offset).ok_or_else(|| anyhow!("internal error"))
-//     })
-// }
-
-// fn sample_without_replacement<'a, 'b>(
-//     chunk: &'a [u8],
-//     count: usize,
-//     last_offset: usize,
-// ) -> impl Iterator<Item = Result<(usize, usize)>> + 'b
-// where
-//     'a: 'b,
-// {
-//     let mut covered_offsets = HashSet::new();
-//     let mut extracted_size = 0;
-
-//     (0..count).map(move |i| {
-//         let offset = fastrand::usize(0..last_offset + 1);
-//         while extracted_size < chunk.len() {
-//             let (begin, end) =
-//                 maybe_extract_line(chunk, offset).ok_or_else(|| anyhow!("internal error"))?;
-
-//             if covered_offsets.insert(begin) {
-//                 extracted_size += end - begin;
-//                 return Ok((begin, end));
-//             }
-//         }
-//         Err(anyhow!(
-//             "cannot sample {} lines from file with only {} lines",
-//             count,
-//             i
-//         ))
-//     })
-// }
 
 /// Write `count` random lines from the input file.
 ///
@@ -170,14 +134,22 @@ pub fn quicklines<W: Write>(
     mut writer: W,
 ) -> Result<()> {
     let mmapped = mmap_file(file_path)?;
-    let total_size =
-        last_valid_offset(&mmapped).ok_or_else(|| anyhow!("file contains no newlines"))?;
+    let last_offset = last_valid_offset(&mmapped)?;
 
     if let Some(seed_value) = seed {
         fastrand::seed(seed_value);
     }
 
-    let sampler: Box<dyn LineSampler> = if allow_duplicates { Box::new(SampleWithReplacement::default()) } else { Box::new(SampleWithoutReplacement::default()) }
+    let sampler: Box<dyn LineSampler> = if allow_duplicates {
+        Box::<SampleWithReplacement>::default()
+    } else {
+        Box::<SampleWithoutReplacement>::default()
+    };
+
+    for sample in sampler.sample(&mmapped, count, last_offset) {
+        let (begin, end) = sample?;
+        writer.write_all(&mmapped[begin..end])?;
+    }
 
     Ok(())
 }
