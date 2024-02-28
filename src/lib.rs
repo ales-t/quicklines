@@ -96,11 +96,10 @@ impl<'a, 'b> LineSampler<'a, 'b> for SampleWithoutReplacement {
         let mut extracted_size = 0;
 
         Box::new((0..count).map(move |i| {
-            while extracted_size < chunk.len() {
+            while extracted_size <= last_offset {
                 let offset = fastrand::usize(0..last_offset + 1);
                 let (begin, end) =
                     maybe_extract_line(chunk, offset).ok_or(anyhow!("internal error"))?;
-
                 if covered_offsets.insert(begin) {
                     extracted_size += end - begin;
                     return Ok((begin, end));
