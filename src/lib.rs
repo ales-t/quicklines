@@ -114,23 +114,17 @@ pub fn quicklines<W: Write>(
     count: usize,
     allow_duplicates: bool,
     seed: Option<u64>,
-    mut writer: W,
+    writer: W,
 ) -> Result<()> {
     let mmapped = mmap_file(file_path)?;
-    // let last_offset = last_valid_offset(&mmapped)?;
-    let last_offset = mmapped.len();
+    let last_offset = last_valid_offset(&mmapped)?;
 
     if let Some(seed_value) = seed {
         fastrand::seed(seed_value);
     }
 
     if allow_duplicates {
-        for _ in 0..count {
-            let offset = fastrand::usize(0..last_offset + 1);
-            let (begin, end) =
-                maybe_extract_line(&mmapped, offset).ok_or(anyhow!("internal error"))?;
-            writer.write_all(&mmapped[begin..end])?;
-        }
+        sample_with_replacement(&mmapped, count, last_offset, writer)?;
     } else {
         sample_without_replacement(&mmapped, count, last_offset, writer)?;
     }
