@@ -117,7 +117,8 @@ pub fn quicklines<W: Write>(
     writer: W,
 ) -> Result<()> {
     let mmapped = mmap_file(file_path)?;
-    let last_offset = last_valid_offset(&mmapped)?;
+    // let last_offset = last_valid_offset(&mmapped)?;
+    let last_offset = mmapped.len();
 
     if let Some(seed_value) = seed {
         fastrand::seed(seed_value);
