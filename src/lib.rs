@@ -48,49 +48,52 @@ fn last_valid_offset(chunk: &[u8]) -> Result<usize> {
     }
 }
 
-#[inline]
-fn sample_with_replacement<'a, 'b>(
-    chunk: &'a [u8],
+fn sample_with_replacement<W: Write>(
+    chunk: &[u8],
     count: usize,
     last_offset: usize,
-) -> impl Iterator<Item = Result<(usize, usize)>> + 'b
-where
-    'a: 'b,
-{
-    (0..count).map(move |_| {
+    mut writer: W,
+) -> Result<()> {
+    for _ in 0..count {
         let offset = fastrand::usize(0..last_offset + 1);
-        maybe_extract_line(chunk, offset).ok_or(anyhow!("internal error"))
-    })
+        let (begin, end) = maybe_extract_line(chunk, offset).ok_or(anyhow!("internal error"))?;
+        writer.write_all(&chunk[begin..end])?;
+    }
+
+    Ok(())
 }
 
-#[inline]
-fn sample_without_replacement<'a, 'b>(
-    chunk: &'a [u8],
+fn sample_without_replacement<W: Write>(
+    chunk: &[u8],
     count: usize,
     last_offset: usize,
-) -> impl Iterator<Item = Result<(usize, usize)>> + 'b
-where
-    'a: 'b,
-{
+    mut writer: W,
+) -> Result<()> {
     let mut covered_offsets = HashSet::new();
     let mut extracted_size = 0;
 
-    (0..count).map(move |i| {
-        while extracted_size <= last_offset {
+    for i in 0..count {
+        if extracted_size > last_offset {
+            return Err(anyhow!(
+                "cannot sample {} lines from file with only {} lines",
+                count,
+                i - 1
+            ));
+        }
+
+        loop {
             let offset = fastrand::usize(0..last_offset + 1);
             let (begin, end) =
                 maybe_extract_line(chunk, offset).ok_or(anyhow!("internal error"))?;
             if covered_offsets.insert(begin) {
                 extracted_size += end - begin;
-                return Ok((begin, end));
+                writer.write_all(&chunk[begin..end])?;
+                break;
             }
         }
-        Err(anyhow!(
-            "cannot sample {} lines from file with only {} lines",
-            count,
-            i - 1
-        ))
-    })
+    }
+
+    Ok(())
 }
 
 /// Write `count` random lines from the input file.
@@ -109,7 +112,7 @@ pub fn quicklines<W: Write>(
     count: usize,
     allow_duplicates: bool,
     seed: Option<u64>,
-    mut writer: W,
+    writer: W,
 ) -> Result<()> {
     let mmapped = mmap_file(file_path)?;
     let last_offset = last_valid_offset(&mmapped)?;
@@ -118,16 +121,10 @@ pub fn quicklines<W: Write>(
         fastrand::seed(seed_value);
     }
 
-    let write_fn = |sample: Result<(usize, usize)>| {
-        let (begin, end) = sample?;
-        writer.write_all(&mmapped[begin..end])?;
-        Ok(())
-    };
-
     if allow_duplicates {
-        sample_with_replacement(&mmapped, count, last_offset).try_for_each(write_fn)?;
+        sample_with_replacement(&mmapped, count, last_offset, writer)?;
     } else {
-        sample_without_replacement(&mmapped, count, last_offset).try_for_each(write_fn)?;
+        sample_without_replacement(&mmapped, count, last_offset, writer)?;
     }
 
     Ok(())
