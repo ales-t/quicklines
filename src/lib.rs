@@ -80,7 +80,7 @@ fn sample_without_replacement<W: Write>(
             return Err(anyhow!(
                 "cannot sample {} lines from file with only {} lines",
                 count,
-                i - 1
+                i
             ));
         }
 
