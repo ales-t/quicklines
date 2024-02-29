@@ -63,3 +63,17 @@ fn sampling_without_replacement_does_not_contain_duplicates() {
     let lines_set: HashSet<_> = lines.iter().collect();
     assert_eq!(lines_set.len(), lines.len());
 }
+
+#[test]
+fn sampling_without_replacement_exhausts_file() {
+    // Given an input file
+    let input_path =
+        String::from_iter([test_resources_dir(), "input-uniform-lines.txt".to_owned()]);
+    let mut writer = Cursor::new(vec![]);
+
+    // When we request more than the total number of lines without replacement
+    let res = quicklines(&input_path, 6, false, Some(12), &mut writer);
+
+    // Then the program should report an error
+    assert!(res.is_err());
+}

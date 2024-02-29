@@ -1,9 +1,9 @@
-use anyhow::{Ok, Result};
+use anyhow::{anyhow, Ok, Result};
 
 use std::io::Write;
 use std::{collections::HashSet, fs::File};
 
-use memchr::memchr;
+use memchr::{memchr, memrchr};
 use memmap2::Mmap;
 
 /// Memory map a file. A tiny convenience wrapper around Mmap::new
@@ -39,6 +39,66 @@ fn maybe_extract_line(chunk: &[u8], offset: usize) -> Option<(usize, usize)> {
     }
 }
 
+/// Find the last valid position in the file where a full line can be found
+fn last_valid_offset(chunk: &[u8]) -> Result<usize> {
+    let end = memrchr(b'\n', chunk).ok_or(anyhow!("file has no newlines"))?;
+    // we found an end (a newline character) so the file contains at least a single line (which starts at 0)
+    match memrchr(b'\n', &chunk[..end]) {
+        None => Err(anyhow!("file has no newlines")),
+        Some(begin) => Ok(begin + 1), // point past the newline
+    }
+}
+
+/// Sample with replacement and print the samples
+fn sample_with_replacement<W: Write>(
+    chunk: &[u8],
+    count: usize,
+    last_offset: usize,
+    writer: &mut W,
+) -> Result<()> {
+    for _ in 0..count {
+        let offset = fastrand::usize(0..last_offset + 1);
+        let (begin, end) = maybe_extract_line(chunk, offset).ok_or(anyhow!("internal error"))?;
+        writer.write_all(&chunk[begin..end])?;
+    }
+
+    Ok(())
+}
+
+/// Sample without replacement and print the samples
+fn sample_without_replacement<W: Write>(
+    chunk: &[u8],
+    count: usize,
+    last_offset: usize,
+    writer: &mut W,
+) -> Result<()> {
+    let mut covered_offsets = HashSet::new();
+    let mut extracted_size = 0;
+
+    for i in 0..count {
+        if extracted_size > last_offset {
+            return Err(anyhow!(
+                "cannot sample {} lines from file with only {} lines",
+                count,
+                i - 1
+            ));
+        }
+
+        loop {
+            let offset = fastrand::usize(0..last_offset + 1);
+            let (begin, end) =
+                maybe_extract_line(chunk, offset).ok_or(anyhow!("internal error"))?;
+            if covered_offsets.insert(begin) {
+                extracted_size += end - begin;
+                writer.write_all(&chunk[begin..end])?;
+                break;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// Write `count` random lines from the input file.
 ///
 /// Uses `mmap` to do this relatively efficiently.
@@ -55,26 +115,19 @@ pub fn quicklines<W: Write>(
     count: usize,
     allow_duplicates: bool,
     seed: Option<u64>,
-    mut writer: W,
+    writer: &mut W,
 ) -> Result<()> {
     let mmapped = mmap_file(file_path)?;
-    let total_size = mmapped.len();
+    let last_offset = last_valid_offset(&mmapped)?;
 
     if let Some(seed_value) = seed {
         fastrand::seed(seed_value);
     }
 
-    let mut covered_offsets = HashSet::new();
-    let mut extracted = 0;
-    while extracted < count {
-        let offset = fastrand::usize(0..total_size);
-        if let Some((begin, end)) = maybe_extract_line(&mmapped, offset) {
-            if !allow_duplicates && !covered_offsets.insert(begin) {
-                continue; // this is a duplicate
-            }
-            extracted += 1;
-            writer.write_all(&mmapped[begin..end])?;
-        }
+    if allow_duplicates {
+        sample_with_replacement(&mmapped, count, last_offset, writer)?;
+    } else {
+        sample_without_replacement(&mmapped, count, last_offset, writer)?;
     }
 
     Ok(())
