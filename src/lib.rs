@@ -78,7 +78,7 @@ fn sample_without_replacement<W: Write>(
     for i in 0..count {
         if extracted_size > last_offset {
             return Err(anyhow!(
-                "cannot sample {} lines from file with only {} lines",
+                "cannot sample {} unique lines from file with only {} lines",
                 count,
                 i
             ));
