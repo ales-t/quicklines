@@ -1,7 +1,11 @@
 use anyhow::{anyhow, Ok, Result};
 
 use std::io::Write;
+use std::sync::Arc;
+use std::thread;
 use std::{collections::HashSet, fs::File};
+
+use std::sync::mpsc::{channel, Sender};
 
 use memchr::{memchr, memrchr};
 use memmap2::Mmap;
@@ -50,17 +54,19 @@ fn last_valid_offset(chunk: &[u8]) -> Result<usize> {
 }
 
 /// Sample with replacement and print the samples
-fn sample_with_replacement<W: Write>(
-    chunk: &[u8],
+fn sample_with_replacement(
+    chunk: Arc<Mmap>,
     count: usize,
     last_offset: usize,
-    writer: &mut W,
+    sender: Sender<Option<(usize, usize)>>,
 ) -> Result<()> {
     for _ in 0..count {
         let offset = fastrand::usize(0..last_offset + 1);
-        let (begin, end) = maybe_extract_line(chunk, offset).ok_or(anyhow!("internal error"))?;
-        writer.write_all(&chunk[begin..end])?;
+        let (begin, end) = maybe_extract_line(&chunk, offset).ok_or(anyhow!("internal error"))?;
+        sender.send(Some((begin, end))).unwrap();
     }
+
+    sender.send(None).unwrap();
 
     Ok(())
 }
@@ -117,7 +123,7 @@ pub fn quicklines<W: Write>(
     seed: Option<u64>,
     writer: &mut W,
 ) -> Result<()> {
-    let mmapped = mmap_file(file_path)?;
+    let mmapped = Arc::new(mmap_file(file_path)?);
     let last_offset = last_valid_offset(&mmapped)?;
 
     if let Some(seed_value) = seed {
@@ -125,7 +131,17 @@ pub fn quicklines<W: Write>(
     }
 
     if allow_duplicates {
-        sample_with_replacement(&mmapped, count, last_offset, writer)?;
+        // Create a simple streaming channel
+        let (tx, rx) = channel();
+        let cloned_mmaped = mmapped.clone();
+        let handle =
+            thread::spawn(move || sample_with_replacement(cloned_mmaped, count, last_offset, tx));
+
+        while let Some((begin, end)) = rx.recv().unwrap() {
+            writer.write_all(&mmapped[begin..end])?;
+        }
+
+        handle.join().unwrap()?;
     } else {
         sample_without_replacement(&mmapped, count, last_offset, writer)?;
     }
